@@ -25,9 +25,9 @@ use crate::visit_context::{VisitContext, VisitorWithContext};
 use crate::visit_types::{VisitType, VisitTypeMut};
 use crate::{
 	dbg_panic, debug, CONSTRUCT_BASE_INTERFACE, UTIL_CLASS_NAME, WINGSDK_ARRAY, WINGSDK_ASSEMBLY_NAME,
-	WINGSDK_BRINGABLE_MODULES, WINGSDK_DURATION, WINGSDK_GENERIC, WINGSDK_JSON, WINGSDK_MAP, WINGSDK_MUT_ARRAY,
-	WINGSDK_MUT_JSON, WINGSDK_MUT_MAP, WINGSDK_MUT_SET, WINGSDK_NODE, WINGSDK_RESOURCE, WINGSDK_SET, WINGSDK_STD_MODULE,
-	WINGSDK_STRING, WINGSDK_STRUCT,
+	WINGSDK_BRINGABLE_MODULES, WINGSDK_DURATION, WINGSDK_GENERIC, WINGSDK_JSON, WINGSDK_LOG_OPTIONS, WINGSDK_MAP,
+	WINGSDK_MUT_ARRAY, WINGSDK_MUT_JSON, WINGSDK_MUT_MAP, WINGSDK_MUT_SET, WINGSDK_NODE, WINGSDK_RESOURCE, WINGSDK_SET,
+	WINGSDK_STD_MODULE, WINGSDK_STRING, WINGSDK_STRUCT,
 };
 use camino::{Utf8Path, Utf8PathBuf};
 use derivative::Derivative;
@@ -782,6 +782,7 @@ impl Subtype for Type {
 pub struct FunctionParameter {
 	pub name: String,
 	pub typeref: TypeRef,
+	pub default: Option<bool>,
 	pub docs: Docs,
 	pub variadic: bool,
 }
@@ -1896,19 +1897,40 @@ impl<'a> TypeChecker<'a> {
 	}
 
 	pub fn add_builtins(&mut self, scope: &mut Scope) {
+		let log_options_fqn = format!("{}.{}", WINGSDK_ASSEMBLY_NAME, WINGSDK_LOG_OPTIONS);
+		let log_options = self
+			.types
+			.libraries
+			.lookup_nested_str(&log_options_fqn, None)
+			.expect("std.LogOptions not found in type system")
+			.0
+			.as_type()
+			.expect("std.LogOptions was found but it's not a type");
 		self.add_builtin(
 			UtilityFunctions::Log.to_string().as_str(),
 			Type::Function(FunctionSignature {
 				this_type: None,
-				parameters: vec![FunctionParameter {
-					name: "message".into(),
-					typeref: self.types.string(),
-					docs: Docs::with_summary("The message to log"),
-					variadic: false,
-				}],
+				parameters: vec![
+					FunctionParameter {
+						name: "message".into(),
+						typeref: self.types.string(),
+						default: None,
+						docs: Docs::with_summary("The message to log"),
+						variadic: false,
+					},
+					FunctionParameter {
+						name: "newline".into(),
+						typeref: log_options,
+						default: Some(true),
+						docs: Docs::with_summary("End with a final newline (defaults to true)"),
+						variadic: false,
+					},
+				],
 				return_type: self.types.void(),
 				phase: Phase::Independent,
-				js_override: Some("console.log($args$)".to_string()),
+				js_override: Some(
+					"if ([$args$][1].newline) { console.log($args$) } else { process.stdout.write([$args$][0]) }".to_string(),
+				),
 				docs: Docs::with_summary("Logs a message"),
 			}),
 			scope,
@@ -1920,6 +1942,7 @@ impl<'a> TypeChecker<'a> {
 				parameters: vec![FunctionParameter {
 					name: "condition".into(),
 					typeref: self.types.bool(),
+					default: None,
 					docs: Docs::with_summary("The condition to assert"),
 					variadic: false,
 				}],
@@ -1937,6 +1960,7 @@ impl<'a> TypeChecker<'a> {
 				parameters: vec![FunctionParameter {
 					name: "value".into(),
 					typeref: self.types.anything(),
+					default: None,
 					docs: Docs::with_summary("The value to cast into a different type"),
 					variadic: false,
 				}],
@@ -1964,6 +1988,7 @@ impl<'a> TypeChecker<'a> {
 				parameters: vec![FunctionParameter {
 					name: "construct".into(),
 					typeref: self.types.construct_interface(),
+					default: None,
 					docs: Docs::with_summary("The construct to obtain the tree node of"),
 					variadic: false,
 				}],
@@ -3373,6 +3398,7 @@ impl<'a> TypeChecker<'a> {
 					parameters.push(FunctionParameter {
 						name: p.name.name.clone(),
 						typeref: self.resolve_type_annotation(&p.type_annotation, env),
+						default: None,
 						docs: Docs::default(),
 						variadic: p.variadic,
 					});
@@ -4990,6 +5016,7 @@ impl<'a> TypeChecker<'a> {
 							.map(|param| FunctionParameter {
 								name: param.name.clone(),
 								docs: param.docs.clone(),
+								default: None,
 								typeref: self.get_concrete_type_for_generic(param.typeref, &types_map),
 								variadic: param.variadic,
 							})
@@ -5254,7 +5281,10 @@ impl<'a> TypeChecker<'a> {
 				} else {
 					// Give a specific error message if someone tries to write "print" instead of "log"
 					if symbol.name == "print" {
-						self.spanned_error(symbol, "Unknown symbol \"print\", did you mean to use \"log\"?");
+						self.spanned_error(
+							symbol,
+							"Unknown symbol \"print\", did you mean to use \"log\" with \"newline: false\"?",
+						);
 					} else {
 						self.type_error(lookup_result_mut_to_type_error(lookup_res, symbol));
 					}
@@ -6169,6 +6199,7 @@ mod tests {
 		let num_fn = make_function(
 			vec![FunctionParameter {
 				typeref: num,
+				default: None,
 				docs: Docs::default(),
 				name: "p1".into(),
 				variadic: false,
@@ -6179,6 +6210,7 @@ mod tests {
 		let str_fn = make_function(
 			vec![FunctionParameter {
 				typeref: string,
+				default: None,
 				docs: Docs::default(),
 				name: "p1".into(),
 				variadic: false,
@@ -6220,6 +6252,7 @@ mod tests {
 		let str_fn = make_function(
 			vec![FunctionParameter {
 				typeref: string,
+				default: None,
 				docs: Docs::default(),
 				name: "p1".into(),
 				variadic: false,
@@ -6230,6 +6263,7 @@ mod tests {
 		let opt_str_fn = make_function(
 			vec![FunctionParameter {
 				typeref: opt_string,
+				default: None,
 				docs: Docs::default(),
 				name: "p1".into(),
 				variadic: false,

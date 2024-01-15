@@ -498,6 +498,7 @@ impl<'a> JsiiImporter<'a> {
 						fn_params.push(FunctionParameter {
 							name: param.name.clone(),
 							typeref: self.parameter_to_wing_type(&param),
+							default: None,
 							docs: Docs::from(&param.docs),
 							variadic: param.variadic.unwrap_or(false),
 						});
@@ -762,6 +763,7 @@ impl<'a> JsiiImporter<'a> {
 					fn_params.push(FunctionParameter {
 						name: param.name.clone(),
 						typeref: self.parameter_to_wing_type(&param),
+						default: None,
 						docs: Docs::from(&param.docs),
 						variadic: param.variadic.unwrap_or(false),
 					});

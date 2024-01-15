@@ -104,6 +104,7 @@ const WINGSDK_MUT_MAP: &'static str = "std.MutMap";
 const WINGSDK_ARRAY: &'static str = "std.Array";
 const WINGSDK_MUT_ARRAY: &'static str = "std.MutArray";
 const WINGSDK_SET: &'static str = "std.Set";
+const WINGSDK_LOG_OPTIONS: &'static str = "std.LogOptions";
 const WINGSDK_MUT_SET: &'static str = "std.MutSet";
 const WINGSDK_STRING: &'static str = "std.String";
 const WINGSDK_JSON: &'static str = "std.Json";

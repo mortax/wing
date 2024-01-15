@@ -230,10 +230,11 @@ fn render_signature_help(f: &FunctionSignature) -> String {
 			format!("— `{param_type}`")
 		};
 
-		if !is_last || !param_type_unwrapped.is_struct() {
-			markdown.line(format!("- `{param_name}` {detail_text}"));
+		let option_text = if param.default.is_none() { "" } else { "?" };
+		if !is_last || !param_type_unwrapped.is_struct() || param.default.is_some() {
+			markdown.line(format!("- `{param_name}{option_text}` {detail_text}"));
 		} else {
-			markdown.line(format!("- `...{param_name}` {detail_text}"));
+			markdown.line(format!("- `...{param_name}{option_text}` {detail_text}"));
 
 			let structy = param_type_unwrapped.as_struct().unwrap();
 			let struct_text = render_classlike_members(structy);
